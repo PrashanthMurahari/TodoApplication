@@ -1,6 +1,7 @@
 package com.shujath.todoapp.controller;
 
 import com.shujath.todoapp.dto.todoitem.CreateTodoItemRequest;
+import com.shujath.todoapp.dto.todoitem.TodoItemCompletionResponse;
 import com.shujath.todoapp.dto.todoitem.TodoItemResponse;
 import com.shujath.todoapp.dto.todoitem.UpdateTodoItemRequest;
 import com.shujath.todoapp.service.TodoItemService;
@@ -85,6 +86,20 @@ public class TodoItemController {
         Long userId = (Long) authentication.getPrincipal();
         TodoItemResponse response =
                 todoItemService.deleteTodoItem(userId, listId, itemId);
+
+        return ResponseEntity.ok(response); // 200
+    }
+
+    // Get completion history of a recurring todo item
+    @GetMapping("/{itemId}/completions")
+    public ResponseEntity<List<TodoItemCompletionResponse>> getTodoItemCompletions(
+            @PathVariable Long listId,
+            @PathVariable Long itemId,
+            Authentication authentication
+    ) {
+        Long userId = (Long) authentication.getPrincipal();
+        List<TodoItemCompletionResponse> response =
+                todoItemService.getTodoItemCompletions(userId, listId, itemId);
 
         return ResponseEntity.ok(response); // 200
     }

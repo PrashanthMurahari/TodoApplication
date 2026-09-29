@@ -1,6 +1,7 @@
 package com.shujath.todoapp.service;
 
 import com.shujath.todoapp.dto.todoitem.CreateTodoItemRequest;
+import com.shujath.todoapp.dto.todoitem.TodoItemCompletionResponse;
 import com.shujath.todoapp.dto.todoitem.TodoItemResponse;
 import com.shujath.todoapp.dto.todoitem.UpdateTodoItemRequest;
 
@@ -18,4 +19,6 @@ public interface TodoItemService {
     );
 
     TodoItemResponse deleteTodoItem(Long userId, Long listId, Long itemId);
+
+    List<TodoItemCompletionResponse> getTodoItemCompletions(Long userId, Long listId, Long itemId);
 }

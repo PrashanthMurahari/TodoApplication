@@ -30,6 +30,22 @@ public class TodoItem {
     @Column
     private LocalDate deadline;
 
+    @Column(nullable = false)
+    private boolean recurring;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "recurrence_type")
+    private RecurrenceType recurrenceType;
+
+    @Column(name = "scheduled_date")
+    private LocalDate scheduledDate;
+
+    @Column(name = "next_occurrence")
+    private LocalDate nextOccurrence;
+
+    @Column(name = "recurrence_anchor_date")
+    private LocalDate recurrenceAnchorDate;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "todo_list_id",
@@ -43,5 +59,11 @@ public class TodoItem {
         IN_PROGRESS,
         COMPLETED,
         NOT_APPLICABLE
+    }
+
+    public enum RecurrenceType {
+        DAILY,
+        WEEKLY,
+        MONTHLY
     }
 }

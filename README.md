@@ -18,7 +18,7 @@ This project demonstrates how a real-world backend should be designed, structure
 ### Entity Relationship Overview
 
 ```
-User (1) ──── (N) TodoList (1) ──── (N) TodoItem
+User (1) ──── (N) TodoList (1) ──── (N) TodoItem (1) ──── (N) TodoItemCompletion
 ```
 
 ---
@@ -54,11 +54,16 @@ Unique constraint:
 
 | Column       | Type    | Constraints                 |
 | ------------ | ------- | --------------------------- |
-| id           | BIGINT  | Primary Key                 |
-| title        | VARCHAR | NOT NULL                    |
-| status       | ENUM    | NOT NULL                    |
-| deadline     | DATE    | NULLABLE                    |
-| todo_list_id | BIGINT  | FK → TodoList(id), NOT NULL |
+| id                     | BIGINT  | Primary Key                 |
+| title                  | VARCHAR | NOT NULL                    |
+| status                 | ENUM    | NOT NULL                    |
+| deadline               | DATE    | NULLABLE                    |
+| todo_list_id           | BIGINT  | FK → TodoList(id), NOT NULL |
+| recurring              | BOOLEAN | NOT NULL, default false     |
+| recurrence_type        | ENUM    | NULLABLE                    |
+| scheduled_date         | DATE    | NULLABLE                    |
+| next_occurrence        | DATE    | NULLABLE                    |
+| recurrence_anchor_date | DATE    | NULLABLE                    |
 
 Allowed status values:
 
@@ -69,17 +74,46 @@ COMPLETED
 NOT_APPLICABLE
 ```
 
+Allowed recurrence type values:
+
+```
+DAILY
+WEEKLY
+MONTHLY
+```
+
+Check constraint `todo_items_recurrence_chk`: the recurrence columns are all set when
+`recurring` is true and all null when it is false.
+
+`recurrence_anchor_date` is internal (not exposed by the API). It is the date the current
+schedule was set from, so monthly items keep their day of month (see Recurring Todo Items).
+
+---
+
+### TodoItemCompletion
+
+Completion history of recurring todo items.
+
+| Column          | Type     | Constraints                 |
+| --------------- | -------- | --------------------------- |
+| id              | BIGINT   | Primary Key                 |
+| todo_item_id    | BIGINT   | FK → TodoItem(id), NOT NULL |
+| occurrence_date | DATE     | NOT NULL                    |
+| completed_at    | DATETIME | NOT NULL                    |
+
 ---
 
 ## Foreign Keys and Cascade Rules
 
 * `TodoList.user_id → User.id`
 * `TodoItem.todo_list_id → TodoList.id`
+* `TodoItemCompletion.todo_item_id → TodoItem.id`
 
 Cascade behavior:
 
 * Deleting a User deletes all TodoLists and TodoItems
 * Deleting a TodoList deletes all TodoItems
+* Deleting a TodoItem deletes its completion history
 
 ---
 
@@ -376,7 +410,11 @@ Successful response – 201 Created:
   "id": 10,
   "title": "Buy milk",
   "status": "CREATED",
-  "deadline": "2026-01-10"
+  "deadline": "2026-01-10",
+  "recurring": false,
+  "recurrenceType": null,
+  "scheduledDate": null,
+  "nextOccurrence": null
 }
 ```
 
@@ -386,6 +424,35 @@ Possible errors:
 * 403 Forbidden – list belongs to another user
 * 404 Not Found – list does not exist
 * 400 Bad Request – invalid status or input
+
+Create a recurring todo item:
+
+```json
+{
+  "title": "Pay rent",
+  "status": "CREATED",
+  "recurring": true,
+  "recurrenceType": "MONTHLY",
+  "scheduledDate": "2026-01-31"
+}
+```
+
+Successful response – 201 Created:
+
+```json
+{
+  "id": 12,
+  "title": "Pay rent",
+  "status": "CREATED",
+  "deadline": null,
+  "recurring": true,
+  "recurrenceType": "MONTHLY",
+  "scheduledDate": "2026-01-31",
+  "nextOccurrence": "2026-02-28"
+}
+```
+
+See [Recurring Todo Items](#recurring-todo-items) for the validation rules.
 
 ---
 
@@ -401,13 +468,21 @@ Successful response – 200 OK:
     "id": 10,
     "title": "Buy milk",
     "status": "CREATED",
-    "deadline": "2026-01-10"
+    "deadline": "2026-01-10",
+    "recurring": false,
+    "recurrenceType": null,
+    "scheduledDate": null,
+    "nextOccurrence": null
   },
   {
     "id": 11,
     "title": "Pay bills",
     "status": "IN_PROGRESS",
-    "deadline": null
+    "deadline": null,
+    "recurring": false,
+    "recurrenceType": null,
+    "scheduledDate": null,
+    "nextOccurrence": null
   }
 ]
 ```
@@ -431,7 +506,11 @@ Successful response – 200 OK:
   "id": 10,
   "title": "Buy milk",
   "status": "CREATED",
-  "deadline": "2026-01-10"
+  "deadline": "2026-01-10",
+  "recurring": false,
+  "recurrenceType": null,
+  "scheduledDate": null,
+  "nextOccurrence": null
 }
 ```
 
@@ -464,7 +543,11 @@ Successful response – 200 OK:
   "id": 10,
   "title": "Buy milk",
   "status": "COMPLETED",
-  "deadline": "2026-01-10"
+  "deadline": "2026-01-10",
+  "recurring": false,
+  "recurrenceType": null,
+  "scheduledDate": null,
+  "nextOccurrence": null
 }
 ```
 
@@ -488,7 +571,11 @@ Successful response – 200 OK:
   "id": 10,
   "title": "Buy milk",
   "status": "COMPLETED",
-  "deadline": "2026-01-10"
+  "deadline": "2026-01-10",
+  "recurring": false,
+  "recurrenceType": null,
+  "scheduledDate": null,
+  "nextOccurrence": null
 }
 ```
 
@@ -497,6 +584,104 @@ Possible errors:
 * 401 Unauthorized
 * 403 Forbidden
 * 404 Not Found
+
+Deleting a recurring todo item also deletes its completion history.
+
+---
+
+### Get Completion History of a Todo Item
+
+**GET** `/lists/{listId}/items/{itemId}/completions`
+
+Returns the completed occurrences of a recurring todo item, oldest first
+(an empty list for one-time items).
+
+Successful response – 200 OK:
+
+```json
+[
+  {
+    "id": 1,
+    "occurrenceDate": "2026-01-31",
+    "completedAt": "2026-01-31T18:04:12.345Z"
+  },
+  {
+    "id": 2,
+    "occurrenceDate": "2026-02-28",
+    "completedAt": "2026-03-01T09:30:00.000Z"
+  }
+]
+```
+
+Possible errors:
+
+* 401 Unauthorized
+* 403 Forbidden – item belongs to another user
+* 404 Not Found – item or list not found
+
+---
+
+## Recurring Todo Items
+
+A todo item is either one-time (default) or recurring. Recurring items use
+`scheduledDate` (the current occurrence) instead of `deadline`.
+
+### Fields
+
+| Field            | Request       | Response | Description                                    |
+| ---------------- | ------------- | -------- | ---------------------------------------------- |
+| `recurring`      | optional      | always   | `true` for recurring items, defaults to `false` |
+| `recurrenceType` | when recurring | always   | `DAILY`, `WEEKLY` or `MONTHLY`                 |
+| `scheduledDate`  | when recurring | always   | Date of the current occurrence (`yyyy-MM-dd`)  |
+| `nextOccurrence` | –             | always   | Date the item moves to once completed          |
+
+### Completing a recurring item
+
+Completing uses the existing update endpoint:
+
+**PUT** `/lists/{listId}/items/{itemId}` with `{"status": "COMPLETED"}`
+
+For a recurring item this:
+
+1. Saves the current `scheduledDate` in the completion history
+2. Moves `scheduledDate` to `nextOccurrence` and calculates a new `nextOccurrence`
+3. Resets `status` to `CREATED`, so the recurring item is never permanently completed
+
+One-time items are completed exactly as before. The next occurrence always follows the
+current `scheduledDate`, even when an overdue occurrence is completed late.
+
+### Recurrence rules
+
+| Type      | Next occurrence                                                          |
+| --------- | ------------------------------------------------------------------------ |
+| `DAILY`   | Next calendar day                                                        |
+| `WEEKLY`  | Same day of the following week                                           |
+| `MONTHLY` | Same day of the following month, or its last day when that day is missing |
+
+Monthly items keep the day of month they were scheduled on: an item scheduled on
+January 31 moves to February 28 (February 29 in leap years), then back to March 31,
+then April 30.
+
+### Updating
+
+Updates are partial, as for one-time items:
+
+* Changing `recurrenceType` or `scheduledDate` recalculates `nextOccurrence`
+* `{"recurring": true, "recurrenceType": ..., "scheduledDate": ...}` converts a one-time
+  item into a recurring one (its `deadline` is cleared)
+* `{"recurring": false}` converts a recurring item into a one-time item (its recurrence
+  fields are cleared, the completion history is kept)
+
+### Validation
+
+Requests are rejected with 400 Bad Request when:
+
+* `recurrenceType` is not `DAILY`, `WEEKLY` or `MONTHLY`
+* A recurring item has no `recurrenceType` or no `scheduledDate`
+* `recurrenceType` or `scheduledDate` is sent for a one-time item
+* `deadline` is sent for a recurring item
+* A recurring item is created with status `COMPLETED`
+* A date is invalid or not in `yyyy-MM-dd` format (e.g. `2026-02-30`)
 
 ---
 
@@ -530,7 +715,8 @@ Mapped exceptions:
 
 * Managed using Flyway
 * Initial schema defined in `V1__init_schema.sql`
-* Schema validated on application startup
+* Recurring todo items added in `V2__add_recurring_todo_items.sql`
+* Migrations run before Hibernate validates the schema on application startup
 * Safe, versioned migrations
 
 ---
@@ -554,7 +740,19 @@ Mapped exceptions:
 * Ownership enforced across all operations
 * Proper HTTP status codes used
 * Global exception handling in place
+* Recurring (daily, weekly, monthly) todo items with completion history
 * Backend is production-ready
+
+## Running Tests
+
+```
+./mvnw test
+```
+
+Unit and integration tests run against an in-memory H2 database (`test` profile), so no
+MySQL is needed. `TodoappApplicationTests` starts the application with its real
+configuration and needs the `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` and `JWT_SECRET`
+environment variables (see `.env.example`).
 
 ## License
 

@@ -16,6 +16,14 @@ public class TodoItemMapper {
                 .title(item.getTitle())
                 .status(item.getStatus().name())
                 .deadline(item.getDeadline())
+                .recurring(item.isRecurring())
+                .recurrenceType(
+                        item.getRecurrenceType() != null
+                                ? item.getRecurrenceType().name()
+                                : null
+                )
+                .scheduledDate(item.getScheduledDate())
+                .nextOccurrence(item.getNextOccurrence())
                 .build();
     }
     public List<TodoItemResponse> toResponseList(List<TodoItem> items) {

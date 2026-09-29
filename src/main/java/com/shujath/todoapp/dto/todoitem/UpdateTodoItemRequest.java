@@ -11,4 +11,7 @@ public class UpdateTodoItemRequest {
     private String title;
     private String status;
     private LocalDate deadline;
+    private Boolean recurring;
+    private String recurrenceType;
+    private LocalDate scheduledDate;
 }

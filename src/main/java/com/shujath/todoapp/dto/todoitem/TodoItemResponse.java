@@ -12,4 +12,8 @@ public class TodoItemResponse {
     private String title;
     private String status;
     private LocalDate deadline;
+    private boolean recurring;
+    private String recurrenceType;
+    private LocalDate scheduledDate;
+    private LocalDate nextOccurrence;
 }

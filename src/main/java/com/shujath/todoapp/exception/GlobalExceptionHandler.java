@@ -2,6 +2,7 @@ package com.shujath.todoapp.exception;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -42,6 +43,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ResponseEntity<ErrorResponse> handleBadRequest(BadRequestException ex) {
         return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    // Unparseable JSON or field values, e.g. an invalid date such as "2026-02-30"
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException ex) {
+        return buildResponse(
+                HttpStatus.BAD_REQUEST,
+                "Malformed request body, dates must use the yyyy-MM-dd format"
+        );
     }
 
     @ExceptionHandler(UnauthorizedException.class)
